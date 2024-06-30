@@ -15,7 +15,8 @@ class CustomUser(AbstractUser):
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     is_superuser = models.BooleanField(default=False)
-    is_verified = models.BooleanField(default=False)
+    # TODO add OTP mechanism
+    is_verified = models.BooleanField(default=True)
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = ["name"]
