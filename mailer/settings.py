@@ -138,8 +138,12 @@ REST_FRAMEWORK = {
 }
 
 SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=60),
+    "ACCESS_TOKEN_LIFETIME": timedelta(days=30),
+    # "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=30),
     "ROTATE_REFRESH_TOKEN": True,
     "BLACKLIST_AFTER_ROTATION": True,
 }
+
+RABBITMQ_HOST = "localhost"
+RABBITMQ_QUEUE = "email_queue"

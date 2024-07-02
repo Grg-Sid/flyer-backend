@@ -1,7 +1,7 @@
 from django.contrib import admin
 
-from .models import EmailMailList, MailList, Email
+from .models import Campaign, MailList, Email
 
-admin.site.register(EmailMailList)
+admin.site.register(Campaign)
 admin.site.register(MailList)
 admin.site.register(Email)

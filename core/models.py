@@ -1,9 +1,28 @@
+from django.utils import timezone
 from django.db import models
 from django.contrib.auth import get_user_model
 from django.core import validators
+from django.core.exceptions import ValidationError
 
 USER_MODEL = get_user_model()
 BOUNCE_THRESHOLD = 3
+
+
+class MailList(models.Model):
+    user = models.ForeignKey(USER_MODEL, on_delete=models.CASCADE)
+    name = models.CharField(max_length=255)
+    description = models.CharField(max_length=255, blank=True, null=True)
+    category = models.CharField(max_length=255, blank=True, null=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def mark_inactive(self):
+        self.is_active = False
+        self.save()
+
+    def __str__(self):
+        return self.name
 
 
 class Email(models.Model):
@@ -12,13 +31,6 @@ class Email(models.Model):
     bounce_count = models.IntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    mail_list = models.ForeignKey(
-        "MailList",
-        on_delete=models.CASCADE,
-        related_name="emails",
-        null=True,
-        blank=True,
-    )
 
     def mark_inactive(self):
         self.is_active = False
@@ -36,54 +48,71 @@ class Email(models.Model):
         return self.email
 
 
-class MailList(models.Model):
-    user = models.ForeignKey(USER_MODEL, on_delete=models.CASCADE)
-    name = models.CharField(max_length=255)
-    description = models.CharField(max_length=255, blank=True, null=True)
-    category = models.CharField(
-        max_length=255, blank=True, null=True
-    )  # Optional category
-    is_active = models.BooleanField(default=True)
+class EmailMailList(models.Model):
+    email = models.ForeignKey(Email, on_delete=models.CASCADE)
+    mail_list = models.ForeignKey(MailList, on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    unsubscribed_at = models.DateTimeField(blank=True, null=True)
 
-    def mark_inactive(self):
-        self.is_active = False
+    class Meta:
+        unique_together = ("email", "mail_list")
+
+    def unsubscribe(self):
+        self.unsubscribed_at = timezone.now()
         self.save()
 
     def __str__(self):
-        return self.name
+        return f"{self.email.email} in {self.mail_list.name}"
 
 
 class Campaign(models.Model):
+    STATUS_DRAFT = "draft"
+    STATUS_ACTIVE = "active"
+    STATUS_COMPLETED = "completed"
+
     STATUS_CHOICES = [
-        ("draft", "Draft"),
-        ("active", "Active"),
-        ("completed", "Completed"),
+        (STATUS_DRAFT, "Draft"),
+        (STATUS_ACTIVE, "Active"),
+        (STATUS_COMPLETED, "Completed"),
     ]
 
-    name = models.CharField(max_length=255)
+    name = models.CharField(max_length=255, unique=True)
     description = models.TextField(blank=True, null=True)
-    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default="draft")
-    mail_lists = models.ManyToManyField(MailList, related_name="campaigns")
+    status = models.CharField(
+        max_length=10, choices=STATUS_CHOICES, default=STATUS_DRAFT, db_index=True
+    )
+    mail_lists = models.ManyToManyField(
+        "MailList", related_name="campaigns", blank=True
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return self.name
 
+    def clean(self):
+        if self.status not in dict(self.STATUS_CHOICES):
+            raise ValidationError("Invalid status.")
 
-# TODO: Add TemplateModel
-# class TemplateModel(models.Model):
-#     name = models.CharField(max_length=200, unique=True)
-#     subject = models.CharField(
-#         max_length=255, null=True, blank=True
-#     )  # Optional subject
-#     template = models.TextField(default="null")
-#     html_file = models.FileField(upload_to="media/template", null=True, blank=True)
+    def activate(self):
+        if self.status == self.STATUS_DRAFT:
+            self.status = self.STATUS_ACTIVE
+            self.save()
 
-#     def __str__(self):
-#         return self.name
+    def complete(self):
+        if self.status == self.STATUS_ACTIVE:
+            self.status = self.STATUS_COMPLETED
+            self.save()
+
+    def get_all_emails(self):
+        """
+        Returns a queryset of all emails associated with this campaign's mail lists.
+        """
+        return Email.objects.filter(mail_list__campaigns=self).distinct()
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
 
 
 class OutgoingMails(models.Model):
@@ -104,26 +133,8 @@ class OutgoingMails(models.Model):
     # )
     have_attachment = models.BooleanField(default=False)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default="pending")
-    delivery_attempts = models.IntegerField(default=0)
-    is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-
-    def increment_delivery_attempts(self):
-        self.delivery_attempts += 1
-        self.save()
-
-    def mark_inactive(self):
-        self.is_active = False
-        self.save()
-
-    def update_to_sent(self):
-        self.status = "sent"
-        self.save()
-
-    def update_to_failed(self):
-        self.status = "failed"
-        self.save()
 
     def __str__(self):
         return f"{self.sender} to {self.to}"
