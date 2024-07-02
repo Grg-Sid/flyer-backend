@@ -50,19 +50,19 @@ class Email(models.Model):
 
 class EmailMailList(models.Model):
     email = models.ForeignKey(Email, on_delete=models.CASCADE)
-    mail_list = models.ForeignKey(MailList, on_delete=models.CASCADE)
+    maillist = models.ForeignKey(MailList, on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True)
     unsubscribed_at = models.DateTimeField(blank=True, null=True)
 
     class Meta:
-        unique_together = ("email", "mail_list")
+        unique_together = ("email", "maillist")
 
     def unsubscribe(self):
         self.unsubscribed_at = timezone.now()
         self.save()
 
     def __str__(self):
-        return f"{self.email.email} in {self.mail_list.name}"
+        return f"{self.email.email} in {self.maillist.name}"
 
 
 class Campaign(models.Model):
@@ -76,14 +76,15 @@ class Campaign(models.Model):
         (STATUS_COMPLETED, "Completed"),
     ]
 
+    user = models.ForeignKey(
+        USER_MODEL, on_delete=models.CASCADE, related_name="campaigns", default=1
+    )
     name = models.CharField(max_length=255, unique=True)
     description = models.TextField(blank=True, null=True)
     status = models.CharField(
         max_length=10, choices=STATUS_CHOICES, default=STATUS_DRAFT, db_index=True
     )
-    mail_lists = models.ManyToManyField(
-        "MailList", related_name="campaigns", blank=True
-    )
+    maillists = models.ManyToManyField("MailList", related_name="campaigns", blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -105,10 +106,13 @@ class Campaign(models.Model):
             self.save()
 
     def get_all_emails(self):
-        """
-        Returns a queryset of all emails associated with this campaign's mail lists.
-        """
-        return Email.objects.filter(mail_list__campaigns=self).distinct()
+        maillist_ids = self.maillists.values_list("id", flat=True)
+        email_ids = EmailMailList.objects.filter(maillist__in=maillist_ids).values_list(
+            "email_id", flat=True
+        )
+        emails = Email.objects.filter(id__in=email_ids).values_list("email", flat=True)
+
+        return list(emails)
 
     def save(self, *args, **kwargs):
         self.full_clean()
@@ -122,6 +126,9 @@ class OutgoingMails(models.Model):
         ("failed", "Failed"),
     ]
 
+    campaign = models.ForeignKey(
+        Campaign, on_delete=models.CASCADE, blank=True, null=True
+    )
     user = models.ForeignKey(USER_MODEL, on_delete=models.CASCADE)
     sender = models.CharField(max_length=255)
     to = models.CharField(max_length=255)
@@ -135,6 +142,10 @@ class OutgoingMails(models.Model):
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default="pending")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    def delete_sent_mails(self):
+        if self.status == "sent":
+            self.delete()
 
     def __str__(self):
         return f"{self.sender} to {self.to}"

@@ -11,7 +11,6 @@ from .serializers import (
     OutgoingMailSerializer,
     CampaignSerializer,
 )
-from .producer import send_email_to_queue
 
 
 class EmailViewSet(viewsets.ModelViewSet):
@@ -28,15 +27,15 @@ class AddBulkEmailView(generics.CreateAPIView):
 
     def post(self, request, *args, **kwargs):
         csv_file = request.FILES.get("csv_file")
-        mail_list_id = request.data.get("mail_list")
-        if not csv_file or not mail_list_id:
+        maillist_id = request.data.get("maillist")
+        if not csv_file or not maillist_id:
             return Response(
                 {"error": "CSV file and mail list are required"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        mail_list = MailList.objects.filter(id=mail_list_id, user=request.user).first()
-        if not mail_list:
+        maillist = MailList.objects.filter(id=maillist_id, user=request.user).first()
+        if not maillist:
             return Response(
                 {
                     "error": "Mail list does not exist or you do not have permission to access it"
@@ -45,10 +44,10 @@ class AddBulkEmailView(generics.CreateAPIView):
             )
 
         serializer = self.get_serializer(
-            data={"csv_file": csv_file, "mail_list": mail_list}
+            data={"csv_file": csv_file, "maillist": maillist}
         )
         if serializer.is_valid():
-            serializer.save(mail_list=mail_list)
+            serializer.save(maillist=maillist)
             return Response(
                 {"success": "Emails have been added successfully"},
                 status=status.HTTP_201_CREATED,
@@ -74,7 +73,7 @@ class EmailMailListViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return EmailMailList.objects.filter(mail_list__user=self.request.user)
+        return EmailMailList.objects.filter(maillist__user=self.request.user)
 
 
 class CampaignViewSet(viewsets.ModelViewSet):
@@ -83,43 +82,41 @@ class CampaignViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
 
-class OutgoingMailViewSet(viewsets.ModelViewSet):
-    queryset = OutgoingMails.objects.all()
+class SendMailsView(generics.CreateAPIView):
     serializer_class = OutgoingMailSerializer
     permission_classes = [IsAuthenticated]
 
+    def create(self, request, *args, **kwargs):
+        campaign_id = request.data.get("campaign")
+        campaign = Campaign.objects.filter(id=campaign_id).first()
 
-class GetAllEmailsFromMailList(views.APIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request, *args, **kwargs):
-        mail_list_id = self.kwargs.get("mail_list_id")
-        mail_list = MailList.objects.filter(id=mail_list_id, user=request.user).first()
-        if not mail_list:
+        if not campaign:
             return Response(
-                {
-                    "error": "Mail list does not exist or you do not have permission to access it"
-                },
+                {"error": "Campaign does not exist or you do not have access to it"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        emails = EmailMailList.objects.filter(mail_list=mail_list)
-        serializer = EmailMailListSerializer(emails, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        emails = campaign.get_all_emails()
+        created_mails = []
 
+        for email in emails:
+            print("hello", email)
+            serializer = self.get_serializer(
+                data={
+                    "campaign": campaign.id,
+                    "user": request.user.id,
+                    "sender": "hello@world.com",
+                    "to": email,
+                    "subject": "Hello World",
+                    "body": "How Are You?",
+                }
+            )
+            serializer.is_valid(raise_exception=True)
+            self.perform_create(serializer)
+            created_mails.append(serializer.data)
 
-class OutgoingMailViewSet(viewsets.ModelViewSet):
-    queryset = OutgoingMails.objects.all()
-    serializer_class = OutgoingMailSerializer
-    permission_classes = [IsAuthenticated]
+        headers = self.get_success_headers(serializer.data)
+        return Response(created_mails, status=status.HTTP_201_CREATED, headers=headers)
 
     def perform_create(self, serializer):
-        instance = serializer.save()
-        email_data = {
-            "sender": instance.sender,
-            "to": instance.to,
-            "subject": instance.subject,
-            "body": instance.body,
-            "have_attachment": instance.have_attachment,
-        }
-        send_email_to_queue(email_data)
+        serializer.save()

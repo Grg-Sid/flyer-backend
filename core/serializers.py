@@ -17,7 +17,7 @@ class EmailSerializer(serializers.ModelSerializer):
 
 class BulkAddEmailSerializer(serializers.Serializer):
     csv_file = serializers.FileField()
-    mail_list = serializers.PrimaryKeyRelatedField(queryset=MailList.objects.all())
+    maillist = serializers.PrimaryKeyRelatedField(queryset=MailList.objects.all())
 
     def validate_csv_file(self, value):
         if not value.name.endswith(".csv"):
@@ -46,7 +46,7 @@ class BulkAddEmailSerializer(serializers.Serializer):
 
     def create(self, validated_data):
         csv_file = validated_data.get("csv_file")
-        mail_list = validated_data.get("mail_list")
+        maillist = validated_data.get("maillist")
         emails_to_create = []
 
         try:
@@ -59,10 +59,10 @@ class BulkAddEmailSerializer(serializers.Serializer):
                 if "@" in email_str:
                     email, created = Email.objects.get_or_create(email=email_str)
                     if not EmailMailList.objects.filter(
-                        email=email, mail_list=mail_list
+                        email=email, maillist=maillist
                     ).exists():
                         emails_to_create.append(
-                            EmailMailList(email=email, mail_list=mail_list)
+                            EmailMailList(email=email, maillist=maillist)
                         )
 
             EmailMailList.objects.bulk_create(emails_to_create)
@@ -70,23 +70,6 @@ class BulkAddEmailSerializer(serializers.Serializer):
             return {"success": "Emails added to the mail list"}
         except Exception as e:
             raise serializers.ValidationError(f"Error processing CSV file: {e}")
-
-
-# class MailListSerializer(serializers.ModelSerializer):
-#     class Meta:
-#         model = MailList
-#         fields = [
-#             "id",
-#             "user",
-#             "name",
-#             "description",
-#             "category",
-#             "is_active",
-#             "email",
-#             "created_at",
-#             "updated_at",
-#         ]
-#         read_only_fields = ["created_at", "updated_at", "email"]
 
 
 class MailListSerializer(serializers.ModelSerializer):
@@ -107,14 +90,14 @@ class MailListSerializer(serializers.ModelSerializer):
 
 class EmailMailListSerializer(serializers.ModelSerializer):
     email = serializers.EmailField()
-    mail_list = serializers.PrimaryKeyRelatedField(queryset=MailList.objects.all())
+    maillist = serializers.PrimaryKeyRelatedField(queryset=MailList.objects.all())
 
     class Meta:
         model = EmailMailList
         fields = [
             "id",
             "email",
-            "mail_list",
+            "maillist",
             "created_at",
             "unsubscribed_at",
         ]
@@ -122,7 +105,7 @@ class EmailMailListSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         email = attrs.get("email")
-        mail_list = attrs.get("mail_list")
+        maillist = attrs.get("maillist")
         request = self.context.get("request")
 
         if not request:
@@ -131,26 +114,24 @@ class EmailMailListSerializer(serializers.ModelSerializer):
         if not Email.objects.filter(email=email).exists():
             raise serializers.ValidationError("Email does not exist.")
 
-        if not MailList.objects.filter(id=mail_list.id, user=request.user).exists():
+        if not MailList.objects.filter(id=maillist.id, user=request.user).exists():
             raise serializers.ValidationError(
                 "Mail list does not exist or you do not have access to it."
             )
 
-        if EmailMailList.objects.filter(
-            email__email=email, mail_list=mail_list
-        ).exists():
+        if EmailMailList.objects.filter(email__email=email, maillist=maillist).exists():
             raise serializers.ValidationError("Email already exists in this mail list.")
 
         return attrs
 
     def create(self, validated_data):
         email_str = validated_data.get("email")
-        mail_list = validated_data.get("mail_list")
+        maillist = validated_data.get("maillist")
 
         email = Email.objects.get(email=email_str)
-        email_mail_list = EmailMailList.objects.create(email=email, mail_list=mail_list)
+        email_maillist = EmailMailList.objects.create(email=email, maillist=maillist)
 
-        return email_mail_list
+        return email_maillist
 
 
 class CampaignSerializer(serializers.ModelSerializer):
@@ -159,7 +140,7 @@ class CampaignSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "name",
-            "mail_lists",
+            "maillists",
             "description",
             "status",
             "created_at",
@@ -187,13 +168,13 @@ class OutgoingMailSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "sender",
+            "user",
             "to",
             "subject",
+            "campaign",
             "body",
             "have_attachment",
             "status",
-            "delivery_attempts",
-            "is_active",
         ]
 
-    read_only_fields = ["status", "delivery_attempts", "is_active"]
+    read_only_fields = ["status", "delivery_attempts", "is_active", "to"]
