@@ -1,3 +1,6 @@
+from django.db.models import Q
+from django.core.mail import send_mail
+
 from rest_framework import generics, status, viewsets, parsers, views
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -120,3 +123,30 @@ class SendMailsView(generics.CreateAPIView):
 
     def perform_create(self, serializer):
         serializer.save()
+
+
+class SendPendingMailsView(views.APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        campaign_id = request.data.get("campaign")
+        if not campaign_id:
+            return Response(
+                {"error": "Campaign ID is required"}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        pending_mails = OutgoingMails.objects.filter(
+            Q(status="pending") & Q(campaign=campaign_id)
+        )
+        print(pending_mails)
+        for mail in pending_mails:
+            send_mail(
+                mail.subject,
+                mail.body,
+                mail.sender,
+                [mail.to],
+                fail_silently=False,
+            )
+            mail.status = "sent"
+            mail.save()
+        return Response({"message": "All pending mails have been sent"})
