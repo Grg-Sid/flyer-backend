@@ -6,7 +6,7 @@ from .views import (
     MailListViewSet,
     EmailMailListViewSet,
     CampaignViewSet,
-    SendMailsView,
+    CreatePendingMails,
     SendPendingMailsView,
 )
 
@@ -19,7 +19,7 @@ router.register(r"campaigns", CampaignViewSet, basename="campaign")
 
 urlpatterns = [
     path("api/", include(router.urls)),
-    path("api/send-mails/", SendMailsView.as_view(), name="send-mails"),
+    path("api/create-pending-mails/", CreatePendingMails.as_view(), name="send-mails"),
     path(
         "api/send-pending-mails/",
         SendPendingMailsView.as_view(),

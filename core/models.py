@@ -122,6 +122,7 @@ class Campaign(models.Model):
 class OutgoingMails(models.Model):
     STATUS_CHOICES = [
         ("pending", "Pending"),
+        ("queued", "Queued"),
         ("sent", "Sent"),
         ("failed", "Failed"),
     ]

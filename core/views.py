@@ -1,5 +1,4 @@
 from django.db.models import Q
-from django.core.mail import send_mail
 
 from rest_framework import generics, status, viewsets, parsers, views
 from rest_framework.permissions import IsAuthenticated
@@ -14,6 +13,7 @@ from .serializers import (
     OutgoingMailSerializer,
     CampaignSerializer,
 )
+from .tasks import send_mail_task
 
 
 class EmailViewSet(viewsets.ModelViewSet):
@@ -85,7 +85,7 @@ class CampaignViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
 
-class SendMailsView(generics.CreateAPIView):
+class CreatePendingMails(generics.CreateAPIView):
     serializer_class = OutgoingMailSerializer
     permission_classes = [IsAuthenticated]
 
@@ -103,7 +103,6 @@ class SendMailsView(generics.CreateAPIView):
         created_mails = []
 
         for email in emails:
-            print("hello", email)
             serializer = self.get_serializer(
                 data={
                     "campaign": campaign.id,
@@ -138,15 +137,9 @@ class SendPendingMailsView(views.APIView):
         pending_mails = OutgoingMails.objects.filter(
             Q(status="pending") & Q(campaign=campaign_id)
         )
-        print(pending_mails)
         for mail in pending_mails:
-            send_mail(
-                mail.subject,
-                mail.body,
-                mail.sender,
-                [mail.to],
-                fail_silently=False,
-            )
-            mail.status = "sent"
+            send_mail_task.delay(mail.id, mail.subject, mail.body, mail.sender, mail.to)
+            mail.status = "queued"
             mail.save()
+
         return Response({"message": "All pending mails have been sent"})
