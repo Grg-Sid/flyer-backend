@@ -144,10 +144,6 @@ class OutgoingMails(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    def delete_sent_mails(self):
-        if self.status == "sent":
-            self.delete()
-
     def __str__(self):
         return f"{self.sender} to {self.to}"
 

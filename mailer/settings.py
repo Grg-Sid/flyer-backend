@@ -153,8 +153,8 @@ EMAIL_HOST = "smtp.gmail.com"
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 EMAIL_USE_SSL = False
-EMAIL_HOST_USER = os.environ.get("SMTP_MAIL")
-EMAIL_HOST_PASSWORD = os.environ.get("SMTP_PASSWORD")
+EMAIL_HOST_USER = os.environ.get("SMTP_MAIL", "ramnegi0202@gmail.com")
+EMAIL_HOST_PASSWORD = os.environ.get("SMTP_PASSWORD", "gigi iezj gdsz aguq")
 
 
 CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "redis://redis:6379/0")

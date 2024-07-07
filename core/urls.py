@@ -8,10 +8,11 @@ from .views import (
     CampaignViewSet,
     CreatePendingMails,
     SendPendingMailsView,
+    SendPendingMailsAsyncView,
+    DeleteMailsView,
 )
 
 router = routers.DefaultRouter()
-
 router.register(r"emails", EmailViewSet, basename="email")
 router.register(r"mail-lists", MailListViewSet, basename="maillist")
 router.register(r"email-mail-list", EmailMailListViewSet, basename="emailmaillist")
@@ -19,11 +20,21 @@ router.register(r"campaigns", CampaignViewSet, basename="campaign")
 
 urlpatterns = [
     path("api/", include(router.urls)),
-    path("api/create-pending-mails/", CreatePendingMails.as_view(), name="send-mails"),
+    path("api/add-bulk-email/", AddBulkEmailView.as_view(), name="add-bulk-email"),
+    path(
+        "api/create-pending-mails/",
+        CreatePendingMails.as_view(),
+        name="create-pending-mails",
+    ),
     path(
         "api/send-pending-mails/",
         SendPendingMailsView.as_view(),
         name="send-pending-mails",
     ),
-    path("api/add-bulk-email/", AddBulkEmailView.as_view(), name="add-bulk-email"),
+    path(
+        "api/send-pending-mails-async/",
+        SendPendingMailsAsyncView.as_view(),
+        name="send-pending-mails-async",
+    ),
+    path("api/delete-mails/", DeleteMailsView.as_view(), name="delete-mails"),
 ]

@@ -1,4 +1,5 @@
 from django.db.models import Q
+from django.core.mail import send_mail
 
 from rest_framework import generics, status, viewsets, parsers, views
 from rest_framework.permissions import IsAuthenticated
@@ -20,7 +21,6 @@ class EmailViewSet(viewsets.ModelViewSet):
     queryset = Email.objects.all()
     serializer_class = EmailSerializer
     permission_classes = [IsAuthenticated]
-    # http_method_names = ["get", "post", "patch", "delete"]
 
 
 class AddBulkEmailView(generics.CreateAPIView):
@@ -31,6 +31,7 @@ class AddBulkEmailView(generics.CreateAPIView):
     def post(self, request, *args, **kwargs):
         csv_file = request.FILES.get("csv_file")
         maillist_id = request.data.get("maillist")
+
         if not csv_file or not maillist_id:
             return Response(
                 {"error": "CSV file and mail list are required"},
@@ -103,16 +104,15 @@ class CreatePendingMails(generics.CreateAPIView):
         created_mails = []
 
         for email in emails:
-            serializer = self.get_serializer(
-                data={
-                    "campaign": campaign.id,
-                    "user": request.user.id,
-                    "sender": "hello@world.com",
-                    "to": email,
-                    "subject": "Hello World",
-                    "body": "How Are You?",
-                }
-            )
+            mail_data = {
+                "campaign": campaign.id,
+                "user": request.user.id,
+                "sender": "hello@world.com",
+                "to": email,
+                "subject": "Hello World",
+                "body": "How Are You?",
+            }
+            serializer = self.get_serializer(data=mail_data)
             serializer.is_valid(raise_exception=True)
             self.perform_create(serializer)
             created_mails.append(serializer.data)
@@ -124,7 +124,56 @@ class CreatePendingMails(generics.CreateAPIView):
         serializer.save()
 
 
+class DeleteMailsView(views.APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete_mails(self, campaign_id, status_list):
+        mails = OutgoingMails.objects.filter(
+            Q(status__in=status_list) & Q(campaign=campaign_id)
+        )
+        mails.delete()
+        return Response(
+            {"message": f"All {', '.join(status_list)} mails have been deleted"}
+        )
+
+    def delete(self, request):
+        campaign_id = request.data.get("campaign")
+        if not campaign_id:
+            return Response(
+                {"error": "Campaign ID is required"}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        status_list = request.data.get("status", ["sent", "failed"])
+        return self.delete_mails(campaign_id, status_list)
+
+
 class SendPendingMailsView(views.APIView):
+
+    permission_classes = [IsAuthenticated]
+
+    def send_mail(self, mail):
+        send_mail(mail.subject, mail.body, mail.sender, [mail.to], fail_silently=False)
+        mail.status = "sent"
+        mail.save()
+
+    def get(self, request):
+        campaign_id = request.data.get("campaign")
+        if not campaign_id:
+            return Response(
+                {"error": "Campaign ID is required"}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        pending_mails = OutgoingMails.objects.filter(
+            Q(status="pending") & Q(campaign=campaign_id)
+        )
+        for mail in pending_mails:
+            self.send_mail(mail)
+
+        return Response({"message": "All pending mails have been sent"})
+
+
+class SendPendingMailsAsyncView(views.APIView):
+
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -142,4 +191,4 @@ class SendPendingMailsView(views.APIView):
             mail.status = "queued"
             mail.save()
 
-        return Response({"message": "All pending mails have been sent"})
+        return Response({"message": "All pending mails have been queued for sending"})
