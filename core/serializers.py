@@ -1,6 +1,15 @@
 import csv
+from django.db import transaction
 from rest_framework import serializers
-from .models import Email, MailList, OutgoingMails, Campaign, EmailMailList
+from .models import (
+    Email,
+    MailList,
+    OutgoingMails,
+    Campaign,
+    EmailMailList,
+    EmailTemplate,
+    Attachment,
+)
 
 
 class EmailSerializer(serializers.ModelSerializer):
@@ -9,6 +18,8 @@ class EmailSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "email",
+            "first_name",
+            "last_name",
             "created_at",
             "updated_at",
         ]
@@ -48,31 +59,36 @@ class BulkAddEmailSerializer(serializers.Serializer):
         csv_file = validated_data.get("csv_file")
         maillist = validated_data.get("maillist")
         emails_to_create = []
+        email_maillist_to_create = []
 
         try:
             decoded_file = csv_file.read().decode("utf-8").splitlines()
             reader = csv.reader(decoded_file)
             next(reader)
 
-            for row in reader:
-                email_str = row[0].strip()
-                if "@" in email_str:
-                    email, created = Email.objects.get_or_create(email=email_str)
-                    if not EmailMailList.objects.filter(
-                        email=email, maillist=maillist
-                    ).exists():
-                        emails_to_create.append(
-                            EmailMailList(email=email, maillist=maillist)
-                        )
+            with transaction.atomic():
+                for row in reader:
+                    email_str = row[0].strip()
+                    if "@" in email_str:
+                        email, created = Email.objects.get_or_create(email=email_str)
+                        if created:
+                            emails_to_create.append(email)
+                            email_maillist_to_create.append(
+                                EmailMailList(email=email, maillist=maillist)
+                            )
 
-            EmailMailList.objects.bulk_create(emails_to_create)
+                Email.objects.bulk_create(emails_to_create, ignore_conflicts=True)
+                EmailMailList.objects.bulk_create(
+                    email_maillist_to_create, ignore_conflicts=True
+                )
 
-            return {"success": "Emails added to the mail list"}
+                return {"success": "Emails added to the mail list"}
         except Exception as e:
             raise serializers.ValidationError(f"Error processing CSV file: {e}")
 
 
 class MailListSerializer(serializers.ModelSerializer):
+
     class Meta:
         model = MailList
         fields = [
@@ -134,7 +150,38 @@ class EmailMailListSerializer(serializers.ModelSerializer):
         return email_maillist
 
 
+class EmailTemplateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EmailTemplate
+        fields = [
+            "id",
+            "name",
+            "subject",
+            "html_content",
+            "user",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["created_at", "updated_at", "id", "user"]
+
+
+class AttachmentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Attachment
+        fields = [
+            "id",
+            "name",
+            "file",
+            "campaign",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["created_at", "updated_at", "id"]
+
+
 class CampaignSerializer(serializers.ModelSerializer):
+    attachments = AttachmentSerializer(many=True, read_only=True)
+
     class Meta:
         model = Campaign
         fields = [
@@ -143,38 +190,35 @@ class CampaignSerializer(serializers.ModelSerializer):
             "maillists",
             "description",
             "status",
+            "template",
+            "attachments",
             "created_at",
             "updated_at",
         ]
         read_only_fields = ["created_at", "updated_at"]
 
 
-# TODO: Add TemplateSerializer
-# class TemplateSerializer(serializers.ModelSerializer):
-#     class Meta:
-#         model = TemplateModel
-#         fields = [
-#             "id",
-#             "name",
-#             "subject",
-#             "template",
-#             "html_file",
-#         ]
-
-
 class OutgoingMailSerializer(serializers.ModelSerializer):
+    custom_attachments = AttachmentSerializer(many=True, required=False)
+
     class Meta:
         model = OutgoingMails
         fields = [
             "id",
             "sender",
-            "user",
             "to",
             "subject",
             "campaign",
             "body",
-            "have_attachment",
             "status",
+            "custom_attachments",
+            "created_at",
+            "updated_at",
         ]
 
-    read_only_fields = ["status", "delivery_attempts", "is_active", "to"]
+    read_only_fields = [
+        "status",
+        "created_at",
+        "updated_at",
+        "id",
+    ]

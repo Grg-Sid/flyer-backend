@@ -22,6 +22,7 @@ services:
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_HOST=postgres_db
       - DB_PORT=5432
+      - SECRET_KEY=${SECRET_KEY}
       - SMTP_MAIL=${SMTP_MAIL}
       - SMTP_PASSWORD=${SMTP_PASSWORD}
     depends_on:
@@ -48,6 +49,7 @@ services:
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_HOST=postgres_db
       - DB_PORT=5432
+      - SECRET_KEY=${SECRET_KEY}
       - SMTP_MAIL=${SMTP_MAIL}
       - SMTP_PASSWORD=${SMTP_PASSWORD}
     depends_on:

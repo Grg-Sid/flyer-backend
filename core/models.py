@@ -1,8 +1,6 @@
 from django.utils import timezone
 from django.db import models
 from django.contrib.auth import get_user_model
-from django.contrib.postgres.indexes import GinIndex
-from django.contrib.postgres.fields import JSONField
 from django.core import validators
 from django.core.exceptions import ValidationError
 from django.utils.safestring import mark_safe
@@ -12,19 +10,12 @@ USER_MODEL = get_user_model()
 
 class MailList(models.Model):
     user = models.ForeignKey(USER_MODEL, on_delete=models.CASCADE)
-    name = models.CharField(max_length=255)
+    name = models.CharField(max_length=255, null=False, blank=False, default="")
     description = models.CharField(max_length=255, blank=True, null=True)
     category = models.CharField(max_length=255, blank=True, null=True)
-    is_active = models.BooleanField(default=True, db_index=True)
+    is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    metadata = JSONField(default=dict, blank=True)
-
-    class Meta:
-        indexes = [
-            models.Index(fields=["user", "is_active"]),
-            GinIndex(fields=["metadata"]),
-        ]
 
     def mark_inactive(self):
         self.is_active = False
@@ -36,8 +27,8 @@ class MailList(models.Model):
 
 class Email(models.Model):
     email = models.EmailField(unique=True, validators=[validators.validate_email])
-    first_name = models.CharField(max_length=255, blank=True, null=True)
-    last_name = models.CharField(max_length=255, blank=True, null=True)
+    first_name = models.CharField(max_length=255, blank=True, null=True, default="")
+    last_name = models.CharField(max_length=255, blank=True, null=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -53,7 +44,6 @@ class EmailMailList(models.Model):
 
     class Meta:
         unique_together = ("email", "maillist")
-        indexes = [models.Index(fields=["email", "maillist", "unsubscribed_at"])]
 
     def unsubscribe(self):
         self.unsubscribed_at = timezone.now()
@@ -97,18 +87,12 @@ class Campaign(models.Model):
     name = models.CharField(max_length=255, unique=True)
     description = models.TextField(blank=True, null=True)
     status = models.CharField(
-        max_length=10, choices=STATUS_CHOICES, default=STATUS_ACTIVE, db_index=True
+        max_length=10, choices=STATUS_CHOICES, default=STATUS_ACTIVE
     )
     maillists = models.ManyToManyField("MailList", related_name="campaigns", blank=True)
     template = models.ForeignKey("EmailTemplate", on_delete=models.SET_NULL, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        indexes = [
-            models.Index(fields=["user", "status"]),
-            GinIndex(fields=["description"]),
-        ]
 
     def __str__(self):
         return self.name
@@ -139,7 +123,7 @@ class Campaign(models.Model):
 
 
 class Attachment(models.Model):
-    name = models.CharField(max_length=255)
+    name = models.CharField(max_length=255, blank=True, null=True, default="")
     file = models.FileField(
         upload_to="media/attachments",
         validators=[
@@ -167,7 +151,7 @@ class OutgoingMails(models.Model):
     ]
 
     campaign = models.ForeignKey(
-        Campaign, on_delete=models.CASCADE, related_name="outgoing_mails"
+        Campaign, on_delete=models.CASCADE, related_name="outgoing_mails", default=None
     )
     user = models.ForeignKey(USER_MODEL, on_delete=models.CASCADE)
     sender = models.CharField(max_length=255)
@@ -180,13 +164,6 @@ class OutgoingMails(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    headeres = JSONField(default=dict, blank=True)
-
-    class Meta:
-        indexes = [
-            models.Index(fields=["user", "status"]),
-            GinIndex(fields=["headeres"]),
-        ]
 
     def get_attachments(self):
         return list(self.custom_attachments.all()) + list(

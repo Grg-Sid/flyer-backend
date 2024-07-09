@@ -2,10 +2,19 @@ from django.db.models import Q
 from django.core.mail import send_mail
 
 from rest_framework import generics, status, viewsets, parsers, views
+from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from .models import Email, MailList, EmailMailList, Campaign, OutgoingMails
+from .models import (
+    Email,
+    MailList,
+    EmailMailList,
+    Campaign,
+    OutgoingMails,
+    EmailTemplate,
+    Attachment,
+)
 from .serializers import (
     EmailSerializer,
     EmailMailListSerializer,
@@ -13,6 +22,8 @@ from .serializers import (
     MailListSerializer,
     OutgoingMailSerializer,
     CampaignSerializer,
+    EmailTemplateSerializer,
+    AttachmentSerializer,
 )
 from .tasks import send_mail_task
 
@@ -85,6 +96,28 @@ class CampaignViewSet(viewsets.ModelViewSet):
     serializer_class = CampaignSerializer
     permission_classes = [IsAuthenticated]
 
+    def perform_create(self, serializer):
+        return super().perform_create(serializer)
+
+    def get_queryset(self):
+        return Campaign.objects.filter(user=self.request.user).prefetch_related(
+            "maillists"
+        )
+
+    @action(detail=True, methods=["post"])
+    def add_attachment(self, request, pk=None):
+        campaign = self.get_object()
+        attachment_serializer = AttachmentSerializer(data=request.data)
+        if attachment_serializer.is_valid():
+            attachment_serializer.save(campaign=campaign)
+            return Response(
+                {"success": "Attachment has been added successfully"},
+                status=status.HTTP_201_CREATED,
+            )
+        return Response(
+            attachment_serializer.errors, status=status.HTTP_400_BAD_REQUEST
+        )
+
 
 class CreatePendingMails(generics.CreateAPIView):
     serializer_class = OutgoingMailSerializer
@@ -124,6 +157,39 @@ class CreatePendingMails(generics.CreateAPIView):
         serializer.save()
 
 
+class TemplateViewSet(viewsets.ModelViewSet):
+    queryset = EmailTemplate.objects.all()
+    serializer_class = EmailTemplateSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return EmailTemplate.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+
+class AttachmentsView(generics.CreateAPIView):
+    serializer_class = AttachmentSerializer
+    permission_classes = [IsAuthenticated]
+
+    def create(self, request, *args, **kwargs):
+        file = request.FILES.get("file")
+        if not file:
+            return Response(
+                {"error": "File is required"}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        serializer = self.get_serializer(data={"file": file})
+        if serializer.is_valid():
+            serializer.save()
+            return Response(
+                {"success": "File has been uploaded successfully"},
+                status=status.HTTP_201_CREATED,
+            )
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
 class DeleteMailsView(views.APIView):
     permission_classes = [IsAuthenticated]
 
@@ -144,32 +210,11 @@ class DeleteMailsView(views.APIView):
             )
 
         status_list = request.data.get("status", ["sent", "failed"])
-        return self.delete_mails(campaign_id, status_list)
+        OutgoingMails.objects.filter(
+            Q(status__in=status_list) & Q(campaign=campaign_id) & Q(user=request.user)
+        ).delete()
 
-
-class SendPendingMailsView(views.APIView):
-
-    permission_classes = [IsAuthenticated]
-
-    def send_mail(self, mail):
-        send_mail(mail.subject, mail.body, mail.sender, [mail.to], fail_silently=False)
-        mail.status = "sent"
-        mail.save()
-
-    def get(self, request):
-        campaign_id = request.data.get("campaign")
-        if not campaign_id:
-            return Response(
-                {"error": "Campaign ID is required"}, status=status.HTTP_400_BAD_REQUEST
-            )
-
-        pending_mails = OutgoingMails.objects.filter(
-            Q(status="pending") & Q(campaign=campaign_id)
-        )
-        for mail in pending_mails:
-            self.send_mail(mail)
-
-        return Response({"message": "All pending mails have been sent"})
+        return Response({"message": "All selected mails have been deleted"})
 
 
 class SendPendingMailsAsyncView(views.APIView):
@@ -184,7 +229,7 @@ class SendPendingMailsAsyncView(views.APIView):
             )
 
         pending_mails = OutgoingMails.objects.filter(
-            Q(status="pending") & Q(campaign=campaign_id)
+            Q(status="pending") & Q(campaign=campaign_id) & Q(user=request.user)
         )
         for mail in pending_mails:
             send_mail_task.delay(mail.id, mail.subject, mail.body, mail.sender, mail.to)

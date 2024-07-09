@@ -1,7 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 
-from ..utils import encrypt, decrypt
+from .utils import encrypt, decrypt
 from .managers import UserManager
 
 
