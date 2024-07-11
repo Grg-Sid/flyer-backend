@@ -90,7 +90,11 @@ class Campaign(models.Model):
         max_length=10, choices=STATUS_CHOICES, default=STATUS_ACTIVE
     )
     maillists = models.ManyToManyField("MailList", related_name="campaigns", blank=True)
-    template = models.ForeignKey("EmailTemplate", on_delete=models.SET_NULL, null=True)
+    subject = models.CharField(max_length=255)
+    body = models.TextField()
+    template = models.ForeignKey(
+        "EmailTemplate", on_delete=models.SET_NULL, null=True, blank=True
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -106,8 +110,6 @@ class Campaign(models.Model):
         self.save(update_fields=["status", "updated_at"])
 
     def get_all_emails(self):
-        from django.db.models import Prefetch
-
         return (
             Email.objects.filter(
                 emailmaillist__maillist__campaigns=self,
@@ -144,7 +146,6 @@ class Attachment(models.Model):
 
 class OutgoingMails(models.Model):
     STATUS_CHOICES = [
-        ("pending", "Pending"),
         ("queued", "Queued"),
         ("sent", "Sent"),
         ("failed", "Failed"),
@@ -156,9 +157,7 @@ class OutgoingMails(models.Model):
     user = models.ForeignKey(USER_MODEL, on_delete=models.CASCADE)
     sender = models.CharField(max_length=255)
     to = models.CharField(max_length=255)
-    subject = models.CharField(max_length=255)
-    body = models.TextField()
-    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default="pending")
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default="queued")
     custom_attachments = models.ManyToManyField(
         Attachment, related_name="custom_mails", blank=True
     )

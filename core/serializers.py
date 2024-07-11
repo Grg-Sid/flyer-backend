@@ -1,5 +1,8 @@
 import csv
+
 from django.db import transaction
+from django.contrib.auth import get_user_model
+
 from rest_framework import serializers
 from .models import (
     Email,
@@ -10,6 +13,8 @@ from .models import (
     EmailTemplate,
     Attachment,
 )
+
+USER_MODEL = get_user_model()
 
 
 class EmailSerializer(serializers.ModelSerializer):
@@ -189,6 +194,8 @@ class CampaignSerializer(serializers.ModelSerializer):
             "name",
             "maillists",
             "description",
+            "subject",
+            "body",
             "status",
             "template",
             "attachments",

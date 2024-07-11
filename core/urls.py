@@ -7,8 +7,8 @@ from .views import (
     EmailMailListViewSet,
     CampaignViewSet,
     CreatePendingMails,
-    # SendPendingMailsView,
     SendPendingMailsAsyncView,
+    CreateSendPendingMails,
     DeleteMailsView,
     TemplateViewSet,
     AttachmentsView,
@@ -34,15 +34,15 @@ urlpatterns = [
         CreatePendingMails.as_view(),
         name="create-pending-mails",
     ),
-    # path(
-    #     "api/send-pending-mails/",
-    #     SendPendingMailsView.as_view(),
-    #     name="send-pending-mails",
-    # ),
     path(
         "api/send-pending-mails-async/",
         SendPendingMailsAsyncView.as_view(),
         name="send-pending-mails-async",
+    ),
+    path(
+        "api/create-send-pending-mails/",
+        CreateSendPendingMails.as_view(),
+        name="create-send-pending-mails",
     ),
     path("api/delete-mails/", DeleteMailsView.as_view(), name="delete-mails"),
 ]

@@ -24,7 +24,9 @@ class CustomUser(AbstractUser):
 
 
 class UserSmtpCreds(models.Model):
-    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+    user = models.OneToOneField(
+        CustomUser, on_delete=models.CASCADE, related_name="smtp_creds"
+    )
     smtp_server = models.CharField(max_length=255)
     email = models.EmailField()
     _password = models.CharField(max_length=255)
