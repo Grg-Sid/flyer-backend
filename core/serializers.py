@@ -161,7 +161,6 @@ class EmailTemplateSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "name",
-            "subject",
             "html_content",
             "user",
             "created_at",
@@ -191,6 +190,7 @@ class CampaignSerializer(serializers.ModelSerializer):
         model = Campaign
         fields = [
             "id",
+            "user",
             "name",
             "maillists",
             "description",

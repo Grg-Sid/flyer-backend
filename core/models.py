@@ -10,7 +10,6 @@ USER_MODEL = get_user_model()
 
 class MailList(models.Model):
     user = models.ForeignKey(USER_MODEL, on_delete=models.CASCADE)
-    name = models.CharField(max_length=255, null=False, blank=False, default="")
     description = models.CharField(max_length=255, blank=True, null=True)
     category = models.CharField(max_length=255, blank=True, null=True)
     is_active = models.BooleanField(default=True)
@@ -27,8 +26,8 @@ class MailList(models.Model):
 
 class Email(models.Model):
     email = models.EmailField(unique=True, validators=[validators.validate_email])
-    first_name = models.CharField(max_length=255, blank=True, null=True, default="")
-    last_name = models.CharField(max_length=255, blank=True, null=True, default="")
+    first_name = models.CharField(max_length=255, default="")
+    last_name = models.CharField(max_length=255, default="")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -55,7 +54,6 @@ class EmailMailList(models.Model):
 
 class EmailTemplate(models.Model):
     name = models.CharField(max_length=255, unique=True)
-    subject = models.CharField(max_length=255)
     html_content = models.TextField(help_text="HTML content for the email template")
     user = models.ForeignKey(USER_MODEL, on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -90,8 +88,8 @@ class Campaign(models.Model):
         max_length=10, choices=STATUS_CHOICES, default=STATUS_ACTIVE
     )
     maillists = models.ManyToManyField("MailList", related_name="campaigns", blank=True)
-    subject = models.CharField(max_length=255)
-    body = models.TextField()
+    subject = models.CharField(max_length=255, blank=True, null=True, default="")
+    body = models.TextField(null=True, blank=True)
     template = models.ForeignKey(
         "EmailTemplate", on_delete=models.SET_NULL, null=True, blank=True
     )
@@ -171,3 +169,14 @@ class OutgoingMails(models.Model):
 
     def __str__(self):
         return f"{self.sender} to {self.to}"
+
+
+class ColdMailing(models.Model):
+    user = models.ForeignKey(USER_MODEL, on_delete=models.CASCADE)
+    campaign = models.ForeignKey(Campaign, on_delete=models.CASCADE)
+    first_name = models.CharField(max_length=255)
+    last_name = models.CharField(max_length=255)
+    company = models.CharField(max_length=255)
+
+    def __str__(self):
+        return f"{self.first_name} {self.last_name} from {self.company}"

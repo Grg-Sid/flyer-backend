@@ -30,23 +30,28 @@ class UserSerializer(serializers.ModelSerializer):
         return data
 
 
-class UserSmtpCredsSerializer(serializers.ModelSerializer):
+class UserSmtpCredSerializer(serializers.ModelSerializer):
     _password = serializers.CharField(write_only=True)
 
     class Meta:
         model = UserSmtpCreds
         fields = [
             "id",
-            "user",
-            "smtp_server",
-            "email",
+            "_password",
+            "username",
             "password",
             "host",
             "port",
+            "use_tls",
+            "use_ssl",
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["created_at", "updated_at", "id", "user"]
+        read_only_fields = [
+            "created_at",
+            "updated_at",
+            "id",
+        ]
 
     def create(self, validated_data):
         password = validated_data.pop("_password")
@@ -66,5 +71,5 @@ class UserSmtpCredsSerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
-        data.pop("password")
+        data.pop("password", None)
         return data

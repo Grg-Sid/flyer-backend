@@ -7,6 +7,7 @@ from .views import (
     EmailMailListViewSet,
     CampaignViewSet,
     CreatePendingMails,
+    GetAllCampaignMails,
     SendPendingMailsAsyncView,
     CreateSendPendingMails,
     DeleteMailsView,
@@ -28,6 +29,11 @@ urlpatterns = [
         "api/attachments/",
         AttachmentsView.as_view(),
         name="attachments",
+    ),
+    path(
+        "api/get-all-campaign-mails/<int:campaign_id>/",
+        GetAllCampaignMails.as_view(),
+        name="get-all-campaign-mails",
     ),
     path(
         "api/create-pending-mails/",

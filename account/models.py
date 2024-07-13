@@ -27,11 +27,12 @@ class UserSmtpCreds(models.Model):
     user = models.OneToOneField(
         CustomUser, on_delete=models.CASCADE, related_name="smtp_creds"
     )
-    smtp_server = models.CharField(max_length=255)
-    email = models.EmailField()
+    username = models.EmailField()
     _password = models.CharField(max_length=255)
     host = models.CharField(max_length=255)
     port = models.IntegerField()
+    use_tls = models.BooleanField(default=True)
+    use_ssl = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -1,5 +1,6 @@
 from django.db.models import Q
 from django.db import transaction
+from django.core.exceptions import ObjectDoesNotExist
 from django.core.paginator import Paginator
 
 from rest_framework import generics, status, viewsets, parsers, views
@@ -31,10 +32,44 @@ from .serializers import (
 from .tasks import send_mail_task
 
 
+class GetAllCampaignMails(views.APIView):
+    permission_classes = [IsAuthenticated, HasCompleteProfile]
+
+    def get(self, request, campaign_id):
+        if not campaign_id:
+            return Response(
+                {"error": "Campaign ID is required"}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            campaign_id = int(campaign_id)
+        except ValueError:
+            return Response(
+                {"error": "Campaign ID must be an integer"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            campaign = Campaign.objects.get(id=campaign_id)
+        except ObjectDoesNotExist:
+            return Response(
+                {"error": "Campaign does not exist"}, status=status.HTTP_404_NOT_FOUND
+            )
+
+        emails = campaign.get_all_emails()
+        if emails is None:
+            return Response(
+                {"error": "No emails found for this campaign"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        return Response({"emails": emails}, status=status.HTTP_200_OK)
+
+
 class EmailViewSet(viewsets.ModelViewSet):
     queryset = Email.objects.all()
     serializer_class = EmailSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasCompleteProfile]
 
 
 class AddBulkEmailView(generics.CreateAPIView):
@@ -100,6 +135,8 @@ class CampaignViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, HasCompleteProfile]
 
     def perform_create(self, serializer):
+        user = self.request.user
+        serializer.save(user=user)
         return super().perform_create(serializer)
 
     def get_queryset(self):
@@ -222,7 +259,6 @@ class DeleteMailsView(views.APIView):
 
 
 class SendPendingMailsAsyncView(views.APIView):
-
     permission_classes = [IsAuthenticated, HasCompleteProfile]
 
     def get(self, request):
@@ -264,33 +300,30 @@ class CreateSendPendingMails(generics.CreateAPIView):
 
         emails = campaign.get_all_emails()
         total_emails = len(emails)
-        batch_size = 100
-        paginator = Paginator(emails, batch_size)
+
+        bulk_mails = []
+        for email in emails:
+            mail_data = {
+                "campaign": campaign,
+                "user": request.user,
+                "to": email,
+                "sender": user.smtp_creds.username,
+                "status": "queued",
+            }
+            bulk_mails.append(OutgoingMails(**mail_data))
 
         try:
             with transaction.atomic():
-                for page_num in paginator.page_range:
-                    page = paginator.page(page_num)
-                    bulk_mails = []
-                    for email in page:
-                        mail_data = {
-                            "campaign": campaign.id,
-                            "user": request.user.id,
-                            "to": email,
-                            "sender": user.smtp_creds.email,
-                            "status": "queued",
-                        }
-                        bulk_mails.append(OutgoingMails(**mail_data))
-                    created_mails = OutgoingMails.objects.bulk_create(bulk_mails)
+                created_mails = OutgoingMails.objects.bulk_create(bulk_mails)
 
-                    for mails in created_mails:
-                        send_mail_task.delay(
-                            mails.id,
-                            campaign.subject,
-                            campaign.body,
-                            mails.sender,
-                            mails.to,
-                        )
+                for mails in created_mails:
+                    send_mail_task.delay(
+                        mails.id,
+                        campaign.subject,
+                        campaign.body,
+                        mails.sender,
+                        mails.to,
+                    )
         except Exception as e:
             return Response(
                 {"error": f"An error occurred while sending mails: {str(e)}"},

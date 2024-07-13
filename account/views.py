@@ -3,7 +3,8 @@ from rest_framework.generics import GenericAPIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 
-from .serializers import UserSerializer, UserSmtpCreds
+from .serializers import UserSerializer, UserSmtpCredSerializer
+from .models import UserSmtpCreds
 
 
 class RegisterView(GenericAPIView):
@@ -26,15 +27,26 @@ class RegisterView(GenericAPIView):
 
 class UserSmtpCredsView(GenericAPIView):
     permission_classes = [IsAuthenticated]
+    serializer_class = UserSmtpCredSerializer
 
     def post(self, request):
-        serializer = UserSmtpCreds(data=request.data)
+        user = request.user
+        serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        serializer.save()
+        serializer.save(user=user)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+    
+    
 
     def get(self, request):
         user = request.user
-        smtp_creds = user.smtp_creds
-        serializer = UserSmtpCreds(smtp_creds)
+        try:
+            smtp_creds = user.smtp_creds
+        except UserSmtpCreds.DoesNotExist:
+            return Response(
+                {"detail": "SMTP credentials not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        serializer = self.get_serializer(smtp_creds)
         return Response(serializer.data, status=status.HTTP_200_OK)
