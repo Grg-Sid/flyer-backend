@@ -83,7 +83,7 @@ class Campaign(models.Model):
         USER_MODEL, on_delete=models.CASCADE, related_name="campaigns", default=1
     )
     name = models.CharField(max_length=255, unique=True)
-    description = models.TextField(blank=True, null=True)
+    description = models.TextField(default="")
     status = models.CharField(
         max_length=10, choices=STATUS_CHOICES, default=STATUS_ACTIVE
     )
@@ -116,6 +116,10 @@ class Campaign(models.Model):
             .distinct()
             .values_list("email", flat=True)
         )
+
+    def get_attachments(self):
+        attachments_list = list(self.attachments.all())
+        return attachments_list
 
     def save(self, *args, **kwargs):
         self.full_clean()

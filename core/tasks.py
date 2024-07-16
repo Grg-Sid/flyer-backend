@@ -1,5 +1,5 @@
 from celery import shared_task
-from django.core.mail import send_mail
+from django.core.mail import EmailMessage
 from django.core.mail.backends.smtp import EmailBackend
 
 from .models import OutgoingMails
@@ -20,10 +20,11 @@ def send_mail_task(mail_id, subject, body, sender, to):
             use_tls=smtp_creds.use_tls,
             use_ssl=smtp_creds.use_ssl,
         )
-        send_mail(
-            subject, body, sender, [to], fail_silently=False, connection=email_backend
-        )
-        mail = OutgoingMails.objects.get(id=mail_id)
+        attachments = mail.campaign.get_attachments()
+        email = EmailMessage(subject, body, sender, [to], connection=email_backend)
+        for attachment in attachments:
+            email.attach_file(attachment.file.path)
+        email.send()
         mail.status = "sent"
         mail.save()
     except Exception as e:

@@ -180,7 +180,7 @@ class AttachmentSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["created_at", "updated_at", "id"]
+        read_only_fields = ["created_at", "updated_at", "campaign", "id"]
 
 
 class CampaignSerializer(serializers.ModelSerializer):

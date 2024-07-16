@@ -6,13 +6,10 @@ from .views import (
     MailListViewSet,
     EmailMailListViewSet,
     CampaignViewSet,
-    CreatePendingMails,
     GetAllCampaignMails,
-    SendPendingMailsAsyncView,
     CreateSendPendingMails,
     DeleteMailsView,
     TemplateViewSet,
-    AttachmentsView,
 )
 
 router = routers.DefaultRouter()
@@ -26,24 +23,9 @@ urlpatterns = [
     path("api/", include(router.urls)),
     path("api/add-bulk-email/", AddBulkEmailView.as_view(), name="add-bulk-email"),
     path(
-        "api/attachments/",
-        AttachmentsView.as_view(),
-        name="attachments",
-    ),
-    path(
         "api/get-all-campaign-mails/<int:campaign_id>/",
         GetAllCampaignMails.as_view(),
         name="get-all-campaign-mails",
-    ),
-    path(
-        "api/create-pending-mails/",
-        CreatePendingMails.as_view(),
-        name="create-pending-mails",
-    ),
-    path(
-        "api/send-pending-mails-async/",
-        SendPendingMailsAsyncView.as_view(),
-        name="send-pending-mails-async",
     ),
     path(
         "api/create-send-pending-mails/",
